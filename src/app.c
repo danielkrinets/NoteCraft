@@ -1,6 +1,7 @@
 #include "app.h"
 
 #include <dirent.h>
+#include <math.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -51,7 +52,8 @@ struct App {
     char path[PATH_CAP];            /* current .txt path, "" if none */
     bool dirty;
     int page;
-    Field pf;                       /* editing state of the current page */
+    Field pf;                       /* editing state of the active page */
+    int anim; uint32_t anim_t0; int anim_old;   /* page-turn animation: direction, start time, old left page */
 
     Screen screen;
     int W, H;
@@ -148,23 +150,38 @@ static void bind_page(App *a)
 
 static void goto_page(App *a, int p)
 {
+    a->anim = 0;
     a->page = clampi(p, 0, a->book->npages - 1);
     bind_page(a);
     blink_reset(a);
 }
 
-static bool editable(const App *a) { return !a->book->is_signed; }
-
-static void page_forward(App *a, bool allow_add)
+/* A spread shows two pages; keep the page count even so the right page exists. */
+static void ensure_even(App *a)
 {
-    if (a->page < a->book->npages - 1) goto_page(a, a->page + 1);
-    else if (allow_add && editable(a)) {
-        if (book_add_page(a->book)) goto_page(a, a->page + 1);
-        else app_toast(a, "Books are limited to 100 pages");
-    }
+    if ((a->book->npages & 1) && a->book->npages < BOOK_MAX_PAGES) book_add_page(a->book);
 }
 
-static void page_back(App *a) { if (a->page > 0) goto_page(a, a->page - 1); }
+static bool editable(const App *a) { return !a->book->is_signed; }
+
+static void turn(App *a, int dir, bool allow_add)
+{
+    int sp = a->page & ~1, nsp = sp + dir * 2;
+    if (nsp < 0) return;
+    if (nsp >= a->book->npages) {
+        if (!allow_add || !editable(a)) return;
+        if (nsp + 2 > BOOK_MAX_PAGES) { app_toast(a, "Books are limited to 100 pages"); return; }
+        while (a->book->npages < nsp + 2) book_add_page(a->book);
+    }
+    a->anim = dir; a->anim_t0 = a->now; a->anim_old = sp;
+    a->page = nsp;
+    bind_page(a);
+    blink_reset(a);
+}
+
+static void page_forward(App *a, bool allow_add) { turn(a, +1, allow_add); }
+
+static void page_back(App *a) { turn(a, -1, false); }
 
 /* ------------------------------------------------------- layout & cursor */
 
@@ -176,9 +193,23 @@ static int disp_lines(const App *a, Line *out)
     return layout_display(p->cp, p->len, BOOK_TEXT_W, out, DISP_CAP);
 }
 
-static int book_x(const App *a) { return (a->W - 192) / 2; }
-#define TEXT_X 36
-#define TEXT_Y 32
+#define BK_W BOOK_SPREAD_W
+#define BK_H BOOK_SPREAD_H
+#define SPINE_X 150
+#define TX_L 24            /* text origin of the left / right page, 114px wide */
+#define TX_R 162
+#define TX_Y 30
+#define ARROW_Y 168
+#define STRIP_Y 193        /* the two buttons sit on the cover below the pages */
+#define PG_X0 9
+#define PG_X1 290
+#define PG_Y0 9
+#define PG_Y1 189
+#define ANIM_MS 380
+
+static int book_ox(const App *a) { return (a->W - BK_W) / 2; }
+static int book_oy(const App *a) { return (a->H - BK_H) / 2; }
+static int side_tx(int side) { return side ? TX_R : TX_L; }
 
 /* Nearest cursor index for a point local to the text area. */
 static int index_at(const App *a, int lx, int ly)
@@ -311,6 +342,7 @@ static uint8_t *read_file(const char *path, size_t *n)
 
 static void reset_view(App *a)
 {
+    ensure_even(a);
     a->page = 0;
     bind_page(a);
     field_set_cursor(&a->pf, 0, false);
@@ -690,24 +722,24 @@ static void add_btn(App *a, int id, int x, int y, int w, int h, const char *labe
 
 static void build_ui(App *a)
 {
-    int cx = a->W / 2;
+    int cx = a->W / 2, ox = book_ox(a), oy = book_oy(a);
     a->nbtn = 0;
     switch (a->screen) {
     case SCR_BOOK:
     case SCR_READ: {
-        int bx = book_x(a);
-        if (a->page > 0) add_btn(a, B_PREV, bx + 43, 159, 23, 13, "", 1);
-        if (a->page < a->book->npages - 1 || (a->screen == SCR_BOOK && a->book->npages < BOOK_MAX_PAGES))
-            add_btn(a, B_NEXT, bx + 116, 159, 23, 13, "", 1);
+        int sp = a->page & ~1;
+        if (sp > 0) add_btn(a, B_PREV, ox + TX_L + 4, oy + ARROW_Y, 23, 13, "", 1);
+        if (sp + 2 < a->book->npages || (a->screen == SCR_BOOK && a->book->npages <= BOOK_MAX_PAGES - 2))
+            add_btn(a, B_NEXT, ox + TX_R + BOOK_TEXT_W - 23 - 4, oy + ARROW_Y, 23, 13, "", 1);
         if (a->screen == SCR_BOOK) {
-            add_btn(a, B_SIGN, cx - 100, 196, 98, 20, "Sign", 1);
-            add_btn(a, B_DONE, cx + 2, 196, 98, 20, "Done", 1);
-        } else add_btn(a, B_READ_DONE, cx - 100, 196, 200, 20, "Done", 1);
+            add_btn(a, B_SIGN, ox + 48, oy + STRIP_Y, 98, 20, "Sign", 1);
+            add_btn(a, B_DONE, ox + 154, oy + STRIP_Y, 98, 20, "Done", 1);
+        } else add_btn(a, B_READ_DONE, ox + 50, oy + STRIP_Y, 200, 20, "Done", 1);
         break;
     }
     case SCR_SIGN:
-        add_btn(a, B_SIGN_OK, cx - 100, 196, 98, 20, "Sign and Close", a->tlen > 0);
-        add_btn(a, B_SIGN_CANCEL, cx + 2, 196, 98, 20, "Cancel", 1);
+        add_btn(a, B_SIGN_OK, ox + 48, oy + STRIP_Y, 98, 20, "Sign and Close", a->tlen > 0);
+        add_btn(a, B_SIGN_CANCEL, ox + 154, oy + STRIP_Y, 98, 20, "Cancel", 1);
         break;
     case SCR_MENU: {
         int rows = a->book->is_signed ? 6 : 5;
@@ -848,8 +880,17 @@ static void key_book(App *a, int key, int mods)
     case KEY_ENTER: insert_cp(a, '\n'); break;
     case KEY_BACKSPACE: if (editable(a) && field_delete(f, -1, ctrl)) mark_dirty(a); break;
     case KEY_DELETE: if (editable(a) && field_delete(f, +1, ctrl)) mark_dirty(a); break;
-    case KEY_LEFT: field_move(f, -1, ctrl, shift); break;
-    case KEY_RIGHT: field_move(f, +1, ctrl, shift); break;
+    case KEY_LEFT:
+        if (f->cur == 0 && !shift && !ctrl && (a->page & 1)) { a->page--; bind_page(a); field_to_end(&a->pf); }
+        else field_move(f, -1, ctrl, shift);
+        break;
+    case KEY_RIGHT:
+        if (f->cur == *f->len && !shift && !ctrl && !(a->page & 1) && a->page + 1 < a->book->npages) { a->page++; bind_page(a); field_set_cursor(&a->pf, 0, false); }
+        else field_move(f, +1, ctrl, shift);
+        break;
+    case KEY_TAB:
+        if ((a->page ^ 1) < a->book->npages) { a->page ^= 1; bind_page(a); field_to_end(&a->pf); }
+        break;
     case KEY_UP: move_line(a, -1, shift); break;
     case KEY_DOWN: move_line(a, +1, shift); break;
     case KEY_HOME: home_end(a, false, ctrl, shift); break;
@@ -965,18 +1006,24 @@ static void on_mouse_down(App *a, const AppEvent *e)
     const Btn *b = hit_btn(a, e->x, e->y);
     if (b) { press(a, b->id); return; }
     if (a->screen == SCR_BOOK) {
-        int bx = book_x(a);
-        if (e->x >= bx && e->x < bx + 192 && e->y >= 2 && e->y < 194) {
-            int idx = index_at(a, e->x - (bx + TEXT_X), e->y - TEXT_Y);
-            if (e->clicks >= 2 && idx == a->last_click_idx) {
-                select_word(a, idx);
-            } else {
-                field_set_cursor(&a->pf, idx, (e->mods & MOD_SHIFT) != 0);
-                a->mdown = true;
+        int ox = book_ox(a), oy = book_oy(a), rx = e->x - ox, ry = e->y - oy;
+        if (rx >= PG_X0 && rx <= PG_X1 && ry >= PG_Y0 && ry <= PG_Y1) {
+            int side = rx >= SPINE_X ? 1 : 0;
+            int pi = (a->page & ~1) + side;
+            if (pi >= a->book->npages && editable(a)) ensure_even(a);
+            if (pi < a->book->npages) {
+                if (pi != a->page) { a->page = pi; bind_page(a); }
+                int idx = index_at(a, rx - side_tx(side), ry - TX_Y);
+                if (e->clicks >= 2 && idx == a->last_click_idx) {
+                    select_word(a, idx);
+                } else {
+                    field_set_cursor(&a->pf, idx, (e->mods & MOD_SHIFT) != 0);
+                    a->mdown = true;
+                }
+                a->last_click_idx = idx;
+                a->last_click_ms = a->now;
+                blink_reset(a);
             }
-            a->last_click_idx = idx;
-            a->last_click_ms = a->now;
-            blink_reset(a);
         }
     } else if (a->screen == SCR_FILES) {
         FilePicker *fp = &a->fp;
@@ -997,8 +1044,7 @@ static void on_mouse_move(App *a, const AppEvent *e)
 {
     a->mx = e->x; a->my = e->y;
     if (a->mdown && a->screen == SCR_BOOK) {
-        int bx = book_x(a);
-        int idx = index_at(a, e->x - (bx + TEXT_X), e->y - TEXT_Y);
+        int idx = index_at(a, e->x - (book_ox(a) + side_tx(a->page & 1)), e->y - (book_oy(a) + TX_Y));
         field_set_cursor(&a->pf, idx, true);
         blink_reset(a);
     }
@@ -1016,6 +1062,7 @@ static void on_wheel(App *a, int w)
 void app_event(App *a, const AppEvent *e)
 {
     a->redraw = true;
+    if (a->anim && (e->type == EV_KEY || e->type == EV_TEXT || e->type == EV_MOUSE_DOWN)) a->anim = 0;   /* skip the animation */
     switch (e->type) {
     case EV_TEXT: on_text(a, e->cp); break;
     case EV_KEY: on_key(a, e->key, e->mods); break;
@@ -1061,8 +1108,8 @@ static void draw_buttons(const App *a, Fb *f)
         const Btn *b = &a->btn[i];
         bool hover = b->enabled && a->mx >= b->x && a->my >= b->y && a->mx < b->x + b->w && a->my < b->y + b->h;
         if (b->id == B_NEXT || b->id == B_PREV) {
-            int sx = hover ? 23 : 0, sy = b->id == B_NEXT ? 192 : 205;
-            fb_blit(f, a->theme->book, sx, sy, 23, 13, b->x, b->y);
+            int sx = hover ? 23 : 0, sy = b->id == B_NEXT ? 0 : 13;
+            fb_blit(f, a->theme->arrows, sx, sy, 23, 13, b->x, b->y);
             continue;
         }
         theme_button(f, b->x, b->y, b->w, b->h, !b->enabled ? BTN_DISABLED : hover ? BTN_HOVER : BTN_NORMAL);
@@ -1073,60 +1120,123 @@ static void draw_buttons(const App *a, Fb *f)
 
 static int blink_phase(const App *a) { return (int)(((a->now - a->blink_base) / BLINK_MS) & 1); }
 
-static void draw_book_page(App *a, Fb *f, bool editing)
+static void draw_page_face(App *a, Fb *f, int ox, int oy, int pi, int side, bool edit)
 {
-    int bx = book_x(a);
-    fb_blit(f, a->theme->book, 0, 0, 192, 192, bx, 2);
-
+    if (pi < 0 || pi >= a->book->npages) return;
+    const Page *p = &a->book->pages[pi];
+    int tx = ox + side_tx(side);
     char ind[48];
-    snprintf(ind, sizeof ind, "Page %d of %d", a->page + 1, a->book->npages);
-    font_draw_u8(f, bx - font_width_u8(ind) + 192 - 44, 18, ind, COL_BLACK, 0);
+    snprintf(ind, sizeof ind, "Page %d of %d", pi + 1, a->book->npages);
+    font_draw_u8(f, side ? tx + BOOK_TEXT_W - font_width_u8(ind) : tx, oy + 15, ind, COL_BLACK, 0);
 
-    const Page *p = &a->book->pages[a->page];
     Line lines[DISP_CAP];
-    int nl = disp_lines(a, lines);
-    int tx = bx + TEXT_X;
+    int nl = layout_display(p->cp, p->len, BOOK_TEXT_W, lines, DISP_CAP);
+    int ty = oy + TX_Y;
     for (int i = 0; i < nl; i++) {
         int ve = layout_vis_end(p->cp, &lines[i]);
-        font_draw(f, tx, TEXT_Y + i * FONT_LINE_H, p->cp + lines[i].start, ve - lines[i].start, COL_BLACK);
+        font_draw(f, tx, ty + i * FONT_LINE_H, p->cp + lines[i].start, ve - lines[i].start, COL_BLACK);
     }
-    if (!editing) return;
+    if (!edit || pi != a->page) return;
 
     int sa, sb;
     field_sel_range(&a->pf, &sa, &sb);
     if (sa != sb) {
         for (int i = 0; i < nl; i++) {
             int ls = lines[i].start, ve = layout_vis_end(p->cp, &lines[i]);
-            int s = sa > ls ? sa : ls, e = sb < ve ? sb : ve;
-            if (e <= s) continue;
-            int x1 = font_width(p->cp + ls, s - ls), x2 = font_width(p->cp + ls, e - ls);
-            fb_or_reverse(f, tx + x1, TEXT_Y + i * FONT_LINE_H, x2 - x1, FONT_LINE_H, 0x0000FF);
+            int s0 = sa > ls ? sa : ls, e0 = sb < ve ? sb : ve;
+            if (e0 <= s0) continue;
+            int x1 = font_width(p->cp + ls, s0 - ls), x2 = font_width(p->cp + ls, e0 - ls);
+            fb_or_reverse(f, tx + x1, ty + i * FONT_LINE_H, x2 - x1, FONT_LINE_H, 0x0000FF);
         }
     }
     if (blink_phase(a) == 0) {
         int cx, cy;
         cursor_xy(a, a->pf.cur, &cx, &cy);
-        if (a->pf.cur == p->len) font_draw_cp(f, tx + cx, TEXT_Y + cy, '_', COL_BLACK);
-        else fb_rect(f, tx + cx, TEXT_Y + cy - 1, 1, 10, COL_BLACK);
+        if (a->pf.cur == p->len) font_draw_cp(f, tx + cx, ty + cy, '_', COL_BLACK);
+        else fb_rect(f, tx + cx, ty + cy - 1, 1, 10, COL_BLACK);
     }
+}
+
+static void draw_spread(App *a, Fb *f, int ox, int oy, int left, int right, bool edit)
+{
+    fb_blit(f, a->theme->book, 0, 0, BK_W, BK_H, ox, oy);
+    draw_page_face(a, f, ox, oy, left, 0, edit);
+    draw_page_face(a, f, ox, oy, right, 1, edit);
+}
+
+/* The page turn: a leaf swings around the spine. It is the old page while it
+ * is on the side it came from and the new page once it has crossed over;
+ * its width follows cos(angle), its free edge lifts and it darkens mid-turn. */
+static void draw_anim(App *a, Fb *f, int ox, int oy)
+{
+    float t = (float)(a->now - a->anim_t0) / (float)ANIM_MS;
+    if (t < 0.f) t = 0.f;
+    if (t > 1.f) t = 1.f;
+    float e = t * t * (3.f - 2.f * t);
+    int fwd = a->anim > 0, S = a->anim_old;
+    int base_l = fwd ? S : S - 2, base_r = fwd ? S + 3 : S + 1;
+    int lface = fwd ? S + 2 : S, rface = fwd ? S + 1 : S - 1;
+    draw_spread(a, f, ox, oy, base_l, base_r, false);
+
+    float th = (fwd ? e : 1.f - e) * 3.14159265f;
+    float c = cosf(th), sn = sinf(th);
+    int on_right = c > 0.f;
+    int pi = on_right ? rface : lface;
+    Fb *tmp = fb_new(BK_W, BK_H);
+    if (!tmp) return;
+    fb_clear(tmp, 0xFF000000u);
+    if (on_right) draw_spread(a, tmp, 0, 0, pi - 1, pi, false);
+    else draw_spread(a, tmp, 0, 0, pi, pi + 1, false);
+
+    const int HW = SPINE_X - PG_X0 - 0;             /* columns from the spine to the outer page edge */
+    int wproj = (int)((float)HW * fabsf(c) + 0.5f);
+    if (wproj < 1) wproj = 1;
+    for (int d = 0; d < wproj; d++) {
+        float u = wproj > 1 ? (float)d / (float)(wproj - 1) : 0.f;
+        int sx = on_right ? SPINE_X + (d * HW) / wproj : (SPINE_X - 1) - (d * HW) / wproj;
+        int dx = on_right ? ox + SPINE_X + d : ox + SPINE_X - 1 - d;
+        int lift = (int)(8.f * sn * u);
+        float sh = 1.f - 0.16f * sn - 0.08f * sn * u;
+        for (int y = PG_Y0; y <= PG_Y1; y++) {
+            uint32_t px = tmp->px[(size_t)y * BK_W + (size_t)sx];
+            uint32_t r = (uint32_t)((float)((px >> 16) & 255) * sh), g = (uint32_t)((float)((px >> 8) & 255) * sh), b = (uint32_t)((float)(px & 255) * sh);
+            if (d == wproj - 1) { r = 0x7a; g = 0x66; b = 0x40; }      /* the free edge of the leaf */
+            fb_plot(f, dx, oy + y - lift, 0xFF000000u | (r << 16) | (g << 8) | b);
+        }
+    }
+    /* soft cast shadow on the page underneath */
+    for (int k = 1; k <= 10; k++) {
+        int x = on_right ? ox + SPINE_X + wproj - 1 + k : ox + SPINE_X - wproj - k;
+        if (x < ox + PG_X0 || x > ox + PG_X1) continue;
+        int alpha = (int)(70.f * sn * (float)(11 - k) / 10.f);
+        if (alpha > 0) fb_rect(f, x, oy + PG_Y0, 1, PG_Y1 - PG_Y0 + 1, (uint32_t)alpha << 24);
+    }
+    fb_free(tmp);
+}
+
+static void draw_book_page(App *a, Fb *f, bool editing)
+{
+    int ox = book_ox(a), oy = book_oy(a), sp = a->page & ~1;
+    if (a->anim) draw_anim(a, f, ox, oy);
+    else draw_spread(a, f, ox, oy, sp, sp + 1, editing);
 }
 
 static void draw_sign(App *a, Fb *f)
 {
-    int bx = book_x(a);
-    fb_blit(f, a->theme->book, 0, 0, 192, 192, bx, 2);
+    int ox = book_ox(a), oy = book_oy(a), tx = ox + TX_R, ty = oy + TX_Y;
+    draw_spread(a, f, ox, oy, -1, -1, false);
     const char *label = "Enter Book Title:";
-    font_draw_u8(f, bx + TEXT_X + (BOOK_TEXT_W - font_width_u8(label)) / 2, 34, label, COL_BLACK, 0);
+    font_draw_u8(f, tx + (BOOK_TEXT_W - font_width_u8(label)) / 2, ty + 2, label, COL_BLACK, 0);
 
     int tw = font_width(a->tbuf, a->tlen) + font_cp_width('_');
-    int tx = bx + TEXT_X + (BOOK_TEXT_W - tw) / 2;
-    font_draw(f, tx, 50, a->tbuf, a->tlen, COL_BLACK);
-    font_draw_cp(f, tx + font_width(a->tbuf, a->tlen), 50, '_', blink_phase(a) == 0 ? COL_BLACK : 0xFFAAAAAAu);
+    int x0 = tx + (BOOK_TEXT_W - tw) / 2;
+    font_draw(f, x0, ty + 18, a->tbuf, a->tlen, COL_BLACK);
+    font_draw_cp(f, x0 + font_width(a->tbuf, a->tlen), ty + 18, '_', blink_phase(a) == 0 ? COL_BLACK : 0xFFAAAAAAu);
 
     char by[100];
     snprintf(by, sizeof by, "by %s", a->book->author);
-    font_draw_u8(f, bx + TEXT_X + (BOOK_TEXT_W - font_width_u8(by)) / 2, 60, by, 0xFF555555u, 0);
-    draw_wrapped(f, bx + TEXT_X, 82, BOOK_TEXT_W, "Note! When you sign the book, it will no longer be editable.", COL_BLACK);
+    font_draw_u8(f, tx + (BOOK_TEXT_W - font_width_u8(by)) / 2, ty + 28, by, 0xFF555555u, 0);
+    draw_wrapped(f, tx, ty + 50, BOOK_TEXT_W, "Note! When you sign the book, it will no longer be editable.", COL_BLACK);
 }
 
 static void draw_editbox(const App *a, Fb *f, int x, int y, int w, int h, const Field *fl, bool focused)
@@ -1221,14 +1331,15 @@ static void draw_toast(App *a, Fb *f)
 {
     if (a->now >= a->toast_until || !a->toast[0]) return;
     int w = font_width_u8(a->toast) + 10;
-    int x = (a->W - w) / 2, y = a->H - 15;
+    int x = (a->W - w) / 2, y = 4;
     fb_rect(f, x, y - 3, w, 14, 0xA0000000u);
     font_draw_u8(f, x + 5, y, a->toast, COL_WHITE, 1);
 }
 
 void app_render(App *a, Fb *f)
 {
-    fb_clear(f, 0xFF1E1E1Eu);          /* plain dark backdrop: just the book and its buttons */
+    int on_book = a->screen == SCR_BOOK || a->screen == SCR_READ || a->screen == SCR_SIGN;
+    fb_tile_dim(f, a->theme->leather, 2, on_book ? 100 : 120);
     build_ui(a);
     switch (a->screen) {
     case SCR_BOOK: draw_book_page(a, f, true); break;
@@ -1253,8 +1364,9 @@ App *app_new(const AppHost *host, const char *pack_dir)
     a->book = book_new();
     a->theme = theme_new(pack_dir);
     if (!a->book || !a->theme) { app_free(a); return NULL; }
-    a->W = 240; a->H = 240;
+    a->W = BK_W; a->H = BK_H;
     a->last_click_idx = -1;
+    ensure_even(a);
     bind_page(a);
     a->redraw = true;
     return a;
@@ -1278,6 +1390,7 @@ void app_update(App *a, uint32_t now)
     int ph = blink_phase(a);
     if (ph != a->last_blink) { a->last_blink = ph; a->redraw = true; }
     if (a->toast_until && now >= a->toast_until) { a->toast_until = 0; a->redraw = true; }
+    if (a->anim) { a->redraw = true; if (now - a->anim_t0 >= ANIM_MS) a->anim = 0; }
 }
 
 bool app_needs_redraw(const App *a) { return a->redraw; }

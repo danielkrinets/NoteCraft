@@ -1,23 +1,21 @@
-/* All GUI art is generated in code (no Mojang assets are shipped).
- * The book atlas uses the same layout as vanilla's book.png, so a resource
- * pack texture from a real Minecraft install can be dropped in unchanged:
- *   (0,0)   192x192  the page
- *   (0,192) 23x13    next arrow   (23,192) hovered
- *   (0,205) 23x13    back arrow   (23,205) hovered                       */
+/* All GUI art is generated in code (no Mojang assets are shipped). It is
+ * drawn the way Minecraft textures are: hard-edged tones, 1px outlines and
+ * sparse pixel noise instead of smooth gradients. */
 #ifndef NC_THEME_H
 #define NC_THEME_H
 
 #include "gfx.h"
 
+#define BOOK_SPREAD_W 300
+#define BOOK_SPREAD_H 216
+
 typedef struct {
-    Fb *book;       /* 256x256 atlas */
-    Fb *dirt;       /* screen background tile */
-    int custom_book, custom_dirt;
+    Fb *book;       /* open book, two pages, BOOK_SPREAD_W x BOOK_SPREAD_H, fully opaque */
+    Fb *arrows;     /* 46x26: next (0,0) hover (23,0); back (0,13) hover (23,13) */
+    Fb *leather;    /* 32x32 cover tile, used behind dialogs */
 } Theme;
 
-/* Builds the theme; if `pack_dir` (a resource pack root) has the matching
- * PNGs they replace the generated textures. */
-Theme *theme_new(const char *pack_dir);
+Theme *theme_new(const char *unused_pack_dir);
 void   theme_free(Theme *t);
 
 enum { BTN_NORMAL = 0, BTN_HOVER = 1, BTN_DISABLED = 2 };

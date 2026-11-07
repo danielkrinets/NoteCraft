@@ -20,8 +20,8 @@
 #include "txt.h"
 #include "utf.h"
 
-#define LW 240
-#define LH 240
+#define LW 300
+#define LH 216
 #define FRAME_MS 50
 
 static char *g_clip = NULL;
@@ -193,16 +193,22 @@ static int scene(Drv *d, const char *name)
         key(d, KEY_DOWN, MOD_SHIFT); key(d, KEY_DOWN, MOD_SHIFT);
         return 0;
     }
-    if (!strcmp(name, "menu")) { type_str(d, PAGE1, 0); key(d, KEY_ESC, 0); move_mouse(d, LW / 2, 114); return 0; }
+    if (!strcmp(name, "turn")) {
+        type_str(d, PAGE1, 0); key(d, KEY_TAB, 0); type_str(d, PAGE2_RU, 0);
+        key(d, KEY_PGDN, 0);
+        tick(d, 150);
+        return 0;
+    }
+    if (!strcmp(name, "menu")) { type_str(d, PAGE1, 0); key(d, KEY_ESC, 0); move_mouse(d, LW / 2, 140); return 0; }
     if (!strcmp(name, "sign")) {
         type_str(d, PAGE1, 0);
-        click(d, LW / 2 - 60, 206);
+        click(d, 97, 203);
         type_str(d, "Village Diary", 0);
         return 0;
     }
     if (!strcmp(name, "read")) {
         type_str(d, PAGE1, 0);
-        click(d, LW / 2 - 60, 206);
+        click(d, 97, 203);
         type_str(d, "Village Diary", 0);
         key(d, KEY_ENTER, 0);
         move_mouse(d, 4, 4);
@@ -220,7 +226,6 @@ static int scene(Drv *d, const char *name)
 /* The demo GIF: typing, wrapping, the page limit, page turn, Cyrillic, files, sign. */
 static void demo_frames(Drv *d)
 {
-    int bx = (LW - 192) / 2;
     tick(d, 700);
     type_str(d, "Day 1\n\n", 55);
     type_str(d, "I found a village at dusk. The librarian traded me a book and a quill for six emeralds.", 26);
@@ -235,9 +240,9 @@ static void demo_frames(Drv *d)
     key(d, KEY_END, MOD_CTRL);
     tick(d, 300);
     /* turn the page with the arrow */
-    glide(d, bx + 128, 166, 600);
+    glide(d, 260, 174, 600);
     tick(d, 300);
-    click(d, bx + 128, 166);
+    click(d, 260, 174);
     tick(d, 500);
     type_str(d, CYRILLIC_TEST, 30);
     tick(d, 900);
@@ -248,12 +253,12 @@ static void demo_frames(Drv *d)
     for (int i = 0; i < 5; i++) { text(d, 'x'); tick(d, 110); }
     tick(d, 1100);
     /* back one page with the arrow */
-    glide(d, bx + 54, 166, 500);
-    click(d, bx + 54, 166);
+    glide(d, 40, 174, 500);
+    click(d, 40, 174);
     tick(d, 800);
     /* sign the book */
-    glide(d, LW / 2 - 50, 206, 500);
-    click(d, LW / 2 - 50, 206);
+    glide(d, 97, 203, 500);
+    click(d, 97, 203);
     tick(d, 500);
     type_str(d, "Village Diary", 75);
     tick(d, 500);
@@ -263,14 +268,14 @@ static void demo_frames(Drv *d)
     /* Esc menu */
     key(d, KEY_ESC, 0);
     tick(d, 500);
-    glide(d, LW / 2, 140, 500);
+    glide(d, LW / 2, 130, 500);
     tick(d, 500);
-    glide(d, LW / 2 + 50, 94, 400);
+    glide(d, LW / 2 + 50, 82, 400);
     tick(d, 300);
-    click(d, LW / 2 + 50, 94);                         /* Open... -> asks about unsaved changes */
+    click(d, LW / 2 + 50, 82);                         /* Open... -> asks about unsaved changes */
     tick(d, 1200);
-    glide(d, LW / 2, 138, 400);
-    click(d, LW / 2, 138);                             /* Don't Save */
+    glide(d, LW / 2, 126, 400);
+    click(d, LW / 2, 126);                             /* Don't Save */
     tick(d, 900);
     glide(d, LW / 2, 44 + 12 * 3 + 6, 500);
     click(d, LW / 2, 44 + 12 * 3 + 6);
@@ -303,7 +308,7 @@ static int banner(const char *icon_path, const char *out, int scale)
     Fb *icon = png_read_fb(icon_path);
     if (!th || !icon) { fprintf(stderr, "cannot load theme/icon\n"); return 1; }
     Fb *f = fb_new(232, 60);
-    fb_tile_dim(f, th->dirt, 2, 70);
+    fb_tile_dim(f, th->leather, 2, 120);
     fb_gradient_v(f, 0, 0, 232, 60, 0x20000000u, 0x60000000u);
     fb_blit(f, icon, 0, 0, 32, 32, 12, 14);
     text_scaled(f, 54, 10, "NoteCraft", 3);

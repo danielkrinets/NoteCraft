@@ -377,10 +377,15 @@ static void test_app(void)
     key(a, KEY_END, MOD_CTRL);
     key(a, 'v', MOD_CTRL);
     CHECK_EQ(app_book(a)->pages[0].len, 19);
-    key(a, KEY_PGDN, 0);
+    key(a, KEY_TAB, 0);                                   /* a spread shows two pages: Tab jumps to the right one */
     CHECK_EQ(app_page(a), 1);
     CHECK_EQ(app_book(a)->npages, 2);
     typ(a, "second page");
+    key(a, KEY_TAB, 0);
+    CHECK_EQ(app_page(a), 0);
+    key(a, KEY_PGDN, 0);                                  /* turning the page starts the next spread */
+    CHECK_EQ(app_page(a), 2);
+    CHECK_EQ(app_book(a)->npages, 4);
     key(a, KEY_PGUP, 0);
     CHECK_EQ(app_page(a), 0);
 
@@ -423,7 +428,7 @@ static void test_flows(void)
     app_set_start_dir(a, dir);
 
     typ(a, "First page\nsecond line");
-    key(a, KEY_PGDN, 0);
+    key(a, KEY_TAB, 0);
     typ(a, "Page two");
 
     /* Ctrl+S -> Save As picker -> Enter writes <dir>/book.txt */
@@ -462,7 +467,7 @@ static void test_flows(void)
 
     /* signing locks the book: typing no longer changes the text */
     app_open_file(a, path);
-    key(a, KEY_PGUP, 0);
+    key(a, KEY_HOME, MOD_CTRL);
     AppEvent c = {0}; c.type = EV_MOUSE_DOWN; c.button = 1; c.clicks = 1; c.x = 427 / 2 - 60; c.y = 206;
     app_event(a, &c);
     CHECK(strcmp(app_screen_name(a), "sign") == 0);

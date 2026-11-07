@@ -9,6 +9,7 @@
 #include "app.h"
 #include "epub.h"
 #include "png.h"
+#include "theme.h"
 #include "utf.h"
 
 #ifdef NC_HAVE_ICON
@@ -68,11 +69,10 @@ static int map_mods(Uint16 m)
 
 /* Vanilla "auto" GUI scale: the largest integer scale that still leaves a
  * logical screen of at least 240x240 (book + buttons + a little air). */
-static int auto_scale(int pw, int ph, int forced)
+static int auto_scale(int pw, int ph)
 {
-    if (forced > 0) return forced;
     int s = 1;
-    while (pw / (s + 1) >= 240 && ph / (s + 1) >= 240) s++;
+    while (pw / (s + 1) >= BOOK_SPREAD_W && ph / (s + 1) >= BOOK_SPREAD_H) s++;
     return s;
 }
 
@@ -105,8 +105,7 @@ static void usage(const char *argv0)
 {
     printf("NoteCraft %s - a Minecraft-style Book and Quill for your desktop\n\n"
            "usage: %s [options] [file.txt|file.epub]\n"
-           "  --scale N     force GUI scale (default: auto, like Minecraft)\n"
-           "  --pack DIR    resource pack root (uses its book.png / options_background.png)\n"
+           "  --scale N     window size as a multiple of the book (default: fits your screen); Ctrl +/- while running\n"
            "  --version     print the version\n", NOTECRAFT_VERSION, argv0);
 }
 
@@ -117,7 +116,6 @@ int main(int argc, char **argv)
     const char *selftest_shot = NULL;   /* hidden: render one frame via SDL, dump the window pixels, exit */
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--scale") && i + 1 < argc) forced_scale = atoi(argv[++i]);
-        else if (!strcmp(argv[i], "--pack") && i + 1 < argc) pack = argv[++i];
         else if (!strcmp(argv[i], "--selftest-shot") && i + 1 < argc) selftest_shot = argv[++i];
         else if (!strcmp(argv[i], "--version")) { printf("NoteCraft %s\n", NOTECRAFT_VERSION); return 0; }
         else if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) { usage(argv[0]); return 0; }
@@ -128,10 +126,22 @@ int main(int argc, char **argv)
     SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, "1");
     if (SDL_Init(SDL_INIT_VIDEO) != 0) { fprintf(stderr, "SDL_Init: %s\n", SDL_GetError()); return 1; }
 
-    SDL_Window *win = SDL_CreateWindow("NoteCraft", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 720, 720,
-                                       SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+    /* The window is exactly the open book, scaled by a whole number (Ctrl +/- to change). */
+    int win_k = 3;
+    {
+        SDL_Rect ub;
+        if (SDL_GetDisplayUsableBounds(0, &ub) == 0) {
+            win_k = (int)(0.85f * (float)ub.h / BOOK_SPREAD_H);
+            int kw = (int)(0.92f * (float)ub.w / BOOK_SPREAD_W);
+            if (kw < win_k) win_k = kw;
+        }
+        if (win_k > 4) win_k = 4;
+        if (win_k < 1) win_k = 1;
+        if (forced_scale > 0) win_k = forced_scale;
+    }
+    SDL_Window *win = SDL_CreateWindow("NoteCraft", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                                       BOOK_SPREAD_W * win_k, BOOK_SPREAD_H * win_k, SDL_WINDOW_ALLOW_HIGHDPI);
     if (!win) { fprintf(stderr, "SDL_CreateWindow: %s\n", SDL_GetError()); return 1; }
-    SDL_SetWindowMinimumSize(win, 240, 240);
     SDL_Renderer *ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!ren) ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_SOFTWARE);
     if (!ren) { fprintf(stderr, "SDL_CreateRenderer: %s\n", SDL_GetError()); return 1; }
@@ -157,7 +167,7 @@ int main(int argc, char **argv)
     if (file) app_open_file(app, file);
     else app_toast(app, "Esc: menu   Ctrl+O: open   Ctrl+S: save");
 
-    Fb *fb = fb_new(240, 240);
+    Fb *fb = fb_new(BOOK_SPREAD_W, BOOK_SPREAD_H);
     SDL_Texture *tex = NULL;
     int tex_w = 0, tex_h = 0, scale = 1, pw = 0, ph = 0;
     char last_title[300] = "";
@@ -173,7 +183,7 @@ int main(int argc, char **argv)
             int winw, winh;
             SDL_GetWindowSize(win, &winw, &winh);
             SDL_GetRendererOutputSize(ren, &pw, &ph);
-            scale = auto_scale(pw, ph, forced_scale);
+            scale = auto_scale(pw, ph);
             float fx = winw ? (float)pw / (float)winw : 1.f, fy = winh ? (float)ph / (float)winh : 1.f;
             switch (e.type) {
             case SDL_QUIT:
@@ -191,6 +201,17 @@ int main(int argc, char **argv)
                 break;
             }
             case SDL_KEYDOWN: {
+                SDL_Keycode sym = e.key.keysym.sym;
+                if ((e.key.keysym.mod & (KMOD_CTRL | KMOD_GUI)) &&
+                    (sym == SDLK_EQUALS || sym == SDLK_PLUS || sym == SDLK_KP_PLUS || sym == SDLK_MINUS || sym == SDLK_KP_MINUS)) {
+                    win_k += (sym == SDLK_MINUS || sym == SDLK_KP_MINUS) ? -1 : 1;
+                    if (win_k < 1) win_k = 1;
+                    if (win_k > 8) win_k = 8;
+                    SDL_SetWindowSize(win, BOOK_SPREAD_W * win_k, BOOK_SPREAD_H * win_k);
+                    SDL_SetWindowPosition(win, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+                    ev.type = EV_NONE; app_event(app, &ev);
+                    break;
+                }
                 int k = map_key(&e.key);
                 if (k) { ev.type = EV_KEY; ev.key = k; ev.mods = map_mods(SDL_GetModState()); app_event(app, &ev); }
                 break;
@@ -235,7 +256,7 @@ int main(int argc, char **argv)
 
         if (app_needs_redraw(app)) {
             SDL_GetRendererOutputSize(ren, &pw, &ph);
-            scale = auto_scale(pw, ph, forced_scale);
+            scale = auto_scale(pw, ph);
             int lw = (pw + scale - 1) / scale, lh = (ph + scale - 1) / scale;
             if (lw < 1) lw = 1;
             if (lh < 1) lh = 1;

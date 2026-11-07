@@ -13,7 +13,7 @@
 #include "book.h"
 #include "txt.h"
 
-#define NOTECRAFT_VERSION "1.0.1"
+#define NOTECRAFT_VERSION "1.1.0"
 
 /* `fallback_title` is used when the book has no title (may be NULL). */
 int epub_export_mem(const Book *b, const char *fallback_title, uint8_t **out, size_t *outn);
