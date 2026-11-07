@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=NoteCraft
+GenericName=Notepad
+Comment=A Minecraft-style Book and Quill notepad
+Exec=notecraft %f
+Icon=notecraft
+Terminal=false
+Categories=Utility;TextEditor;
+MimeType=text/plain;application/epub+zip;
+StartupWMClass=notecraft
+Keywords=notes;book;quill;minecraft;epub;
