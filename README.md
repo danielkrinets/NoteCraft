@@ -19,6 +19,21 @@
   <img src="assets/demo.gif" alt="Demo: typing, page limit, page turn, Cyrillic, signing, opening a file" width="640">
 </p>
 
+## Download
+
+Prebuilt binaries are on the **[Releases page](https://github.com/danielkrinets/NoteCraft/releases/latest)**:
+
+| Platform | File |
+|---|---|
+| **Arch Linux** (x86_64) | `notecraft-1.0.0-1-x86_64.pkg.tar.zst` — `sudo pacman -U notecraft-*.pkg.tar.zst` |
+| **macOS, Apple Silicon** (M1 and newer) | `NoteCraft-1.0.0-macos-apple-silicon.dmg` (or `.zip`) |
+| **macOS, Intel** | `NoteCraft-1.0.0-macos-intel.dmg` (or `.zip`) |
+| Any other Linux (x86_64, aarch64) | `notecraft-1.0.0-linux-<arch>.tar.gz` (needs `libSDL2`) |
+
+Arch users can also build from source with [`packaging/arch/PKGBUILD`](packaging/arch/PKGBUILD): `makepkg -si`.
+
+**macOS first launch:** the app is not signed with an Apple Developer ID, so Gatekeeper will warn about it. Drag NoteCraft to *Applications*, then right-click → *Open*, or run `xattr -dr com.apple.quarantine /Applications/NoteCraft.app`. SDL2 is linked statically; nothing else has to be installed.
+
 ## Features
 
 - **The Minecraft book, as a notepad.** Parchment page, leather frame, page arrows, `Page 1 of 3`, the blinking `_` caret, blue text selection, **Sign** / **Done** buttons, and the "Enter Book Title" screen.
@@ -41,7 +56,7 @@
 | ![Cyrillic](assets/screenshots/cyrillic.png) | ![Signing](assets/screenshots/sign.png) |
 | ![Menu](assets/screenshots/menu.png) | ![Open file](assets/screenshots/files.png) |
 
-## Install
+## Build from source
 
 NoteCraft needs a C compiler, **SDL2** and **zlib**.
 

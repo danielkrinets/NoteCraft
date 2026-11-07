@@ -76,14 +76,17 @@ for (x, y), c in feather.items(): put(x, y, c)
 put(3, 31, "ink"); put(4, 31, "ink"); put(5, 31, "ink")
 
 # --- outputs -----------------------------------------------------------------
-def png(path, w, h, rows):
+def png_bytes(w, h, rows):
     raw = b"".join(b"\x00" + b"".join(bytes(p if p else (0, 0, 0)) + (b"\xff" if p else b"\x00") for p in r) for r in rows)
     def chunk(t, d):
         c = struct.pack(">I", len(d)) + t + d
         return c + struct.pack(">I", zlib.crc32(t + d) & 0xffffffff)
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0)) +
+            chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
+
+def png(path, w, h, rows):
     with open(path, "wb") as f:
-        f.write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0)) +
-                chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
+        f.write(png_bytes(w, h, rows))
 
 def scaled(k):
     return [[px[y // k][x // k] for x in range(N * k)] for y in range(N * k)]
@@ -119,4 +122,10 @@ for i in range(0, len(vals), 16):
     lines.append("    " + ", ".join(str(v) for v in vals[i:i + 16]) + ",")
 lines.append("};")
 open(os.path.join(ROOT, "src/icon_data.h"), "w").write("\n".join(lines) + "\n")
+# macOS .icns (PNG-compressed icon elements)
+elems = b""
+for typ, k in ((b"icp5", 1), (b"icp6", 2), (b"ic07", 4), (b"ic08", 8), (b"ic09", 16), (b"ic10", 32)):
+    data = png_bytes(N * k, N * k, scaled(k))
+    elems += typ + struct.pack(">I", len(data) + 8) + data
+open(os.path.join(ROOT, "assets/NoteCraft.icns"), "wb").write(b"icns" + struct.pack(">I", len(elems) + 8) + elems)
 print("icon written")

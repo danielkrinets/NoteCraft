@@ -16,6 +16,21 @@
   <img src="assets/demo.gif" alt="Демо: набор текста, лимит страницы, перелистывание, кириллица, подпись, открытие файла" width="640">
 </p>
 
+## Скачать
+
+Готовые сборки лежат на **[странице релизов](https://github.com/danielkrinets/NoteCraft/releases/latest)**:
+
+| Платформа | Файл |
+|---|---|
+| **Arch Linux** (x86_64) | `notecraft-1.0.0-1-x86_64.pkg.tar.zst` — `sudo pacman -U notecraft-*.pkg.tar.zst` |
+| **macOS, Apple Silicon** (M1 и новее) | `NoteCraft-1.0.0-macos-apple-silicon.dmg` (или `.zip`) |
+| **macOS, Intel** | `NoteCraft-1.0.0-macos-intel.dmg` (или `.zip`) |
+| Любой другой Linux (x86_64, aarch64) | `notecraft-1.0.0-linux-<arch>.tar.gz` (нужна `libSDL2`) |
+
+На Arch можно собрать и из исходников: [`packaging/arch/PKGBUILD`](packaging/arch/PKGBUILD), команда `makepkg -si`.
+
+**Первый запуск на macOS:** приложение не подписано сертификатом Apple Developer ID, поэтому Gatekeeper предупредит. Перетащите NoteCraft в *Программы*, затем правый клик → *Открыть* или выполните `xattr -dr com.apple.quarantine /Applications/NoteCraft.app`. SDL2 вшит статически, ничего больше ставить не нужно.
+
 ## Возможности
 
 - **Книга из Minecraft как блокнот.** Пергаментная страница, кожаная рамка, стрелки страниц, `Page 1 of 3`, мигающий курсор `_`, синее выделение текста, кнопки **Sign** / **Done** и экран «Enter Book Title».
@@ -38,7 +53,7 @@
 | ![Кириллица](assets/screenshots/cyrillic.png) | ![Подпись](assets/screenshots/sign.png) |
 | ![Меню](assets/screenshots/menu.png) | ![Открытие файла](assets/screenshots/files.png) |
 
-## Установка
+## Сборка из исходников
 
 Нужны компилятор C, **SDL2** и **zlib**.
 

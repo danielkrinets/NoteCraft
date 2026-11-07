@@ -1,0 +1,28 @@
+# Maintainer: danielkrinets
+pkgname=notecraft
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='Minecraft-style Book and Quill notepad (native C + SDL2): txt, pages, ePub'
+arch=('x86_64' 'aarch64')
+url='https://github.com/danielkrinets/NoteCraft'
+license=('MIT')
+depends=('sdl2' 'zlib')
+makedepends=('gcc' 'make')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  cd "NoteCraft-$pkgver"
+  make CFLAGS="$CFLAGS" notecraft
+}
+
+check() {
+  cd "NoteCraft-$pkgver"
+  make CFLAGS="$CFLAGS" test
+}
+
+package() {
+  cd "NoteCraft-$pkgver"
+  make DESTDIR="$pkgdir" PREFIX=/usr install
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

@@ -1,0 +1,152 @@
+name: Release
+
+# Builds downloadable binaries and attaches them to a GitHub Release.
+# Triggered by pushing a tag like v1.0.0 (or run manually to just build).
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  SDL2_TAG: release-2.32.10
+
+jobs:
+  linux:
+    name: Linux ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, arch: x86_64 }
+          - { os: ubuntu-22.04-arm, arch: aarch64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libsdl2-dev zlib1g-dev
+      - run: make notecraft
+      - name: Package
+        run: |
+          VER=$(sed -n 's/#define NOTECRAFT_VERSION "\(.*\)"/\1/p' src/epub.h)
+          D=notecraft-$VER-linux-${{ matrix.arch }}
+          mkdir -p "$D"
+          cp notecraft LICENSE README.md packaging/notecraft.desktop assets/notecraft.svg assets/icon-256.png "$D/"
+          printf 'NoteCraft %s\n\nRun ./notecraft  (needs libSDL2: apt install libsdl2-2.0-0 | dnf install SDL2 | pacman -S sdl2)\nTo add it to your app menu:\n  install -Dm755 notecraft ~/.local/bin/notecraft\n  install -Dm644 notecraft.desktop ~/.local/share/applications/notecraft.desktop\n  install -Dm644 notecraft.svg ~/.local/share/icons/hicolor/scalable/apps/notecraft.svg\n' "$VER" > "$D/INSTALL.txt"
+          tar czf "$D.tar.gz" "$D"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: notecraft-*.tar.gz
+
+  arch:
+    name: Arch Linux package
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - run: pacman -Syu --noconfirm --needed sdl2 zlib git
+      - uses: actions/checkout@v4
+      - name: Build package with makepkg
+        run: |
+          VER=$(sed -n 's/#define NOTECRAFT_VERSION "\(.*\)"/\1/p' src/epub.h)
+          git config --global --add safe.directory "$PWD"
+          useradd -m builder
+          mkdir -p /home/builder/pkg
+          git archive --format=tar.gz --prefix=NoteCraft-$VER/ -o /home/builder/pkg/notecraft-$VER.tar.gz HEAD
+          cp packaging/arch/PKGBUILD /home/builder/pkg/
+          chown -R builder /home/builder/pkg
+          su builder -c "cd /home/builder/pkg && makepkg --skipchecksums --noconfirm"
+          cp /home/builder/pkg/*.pkg.tar.zst .
+          ls -la *.pkg.tar.zst
+          pacman -Qip *.pkg.tar.zst
+          pacman -Qlp *.pkg.tar.zst
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arch-x86_64
+          path: notecraft-*.pkg.tar.zst
+
+  macos:
+    name: macOS ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-15-intel, arch: x86_64, label: intel }
+          - { os: macos-15, arch: arm64, label: apple-silicon }
+    runs-on: ${{ matrix.os }}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build SDL2 statically
+        run: |
+          git clone --depth 1 --branch "$SDL2_TAG" https://github.com/libsdl-org/SDL.git "$RUNNER_TEMP/SDL"
+          cmake -S "$RUNNER_TEMP/SDL" -B "$RUNNER_TEMP/SDL/build" -DCMAKE_BUILD_TYPE=Release \
+                -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TEST_LIBRARY=OFF -DSDL_TESTS=OFF \
+                -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/sdl2" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+          cmake --build "$RUNNER_TEMP/SDL/build" --parallel 4
+          cmake --install "$RUNNER_TEMP/SDL/build"
+      - name: Build NoteCraft
+        run: |
+          SC="$RUNNER_TEMP/sdl2/bin/sdl2-config"
+          make notecraft SDL_CFLAGS="$($SC --cflags)" SDL_LIBS="$($SC --static-libs)"
+          file notecraft
+          otool -L notecraft
+          if otool -L notecraft | grep -qi sdl; then echo "SDL must be linked statically"; exit 1; fi
+          ./notecraft --version
+      - name: Package .app, .dmg and .zip
+        run: |
+          VER=$(sed -n 's/#define NOTECRAFT_VERSION "\(.*\)"/\1/p' src/epub.h)
+          N=NoteCraft-$VER-macos-${{ matrix.label }}
+          packaging/macos/make_app.sh ./notecraft "$VER" dist
+          mkdir stage && cp -R dist/NoteCraft.app stage/ && ln -s /Applications stage/Applications
+          hdiutil create -volname "NoteCraft $VER" -srcfolder stage -ov -format UDZO "$N.dmg"
+          ditto -c -k --keepParent dist/NoteCraft.app "$N.zip"
+          ls -la "$N.dmg" "$N.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.label }}
+          path: |
+            NoteCraft-*.dmg
+            NoteCraft-*.zip
+
+  publish:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [linux, arch, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt && cd ..
+          cat > notes.md <<'NOTES'
+          ## Downloads
+
+          | Platform | File |
+          |---|---|
+          | **Arch Linux** (x86_64) | `notecraft-*-x86_64.pkg.tar.zst` — install with `sudo pacman -U <file>` |
+          | **macOS, Apple Silicon** (M1/M2/M3/M4) | `NoteCraft-*-macos-apple-silicon.dmg` (or `.zip`) |
+          | **macOS, Intel** | `NoteCraft-*-macos-intel.dmg` (or `.zip`) |
+          | Linux x86_64 / aarch64 (any distro) | `notecraft-*-linux-<arch>.tar.gz` (needs `libSDL2`) |
+
+          Arch users can also build from source: `makepkg -si` with `packaging/arch/PKGBUILD`.
+
+          ### macOS first launch
+          The app is not signed with an Apple Developer ID, so macOS Gatekeeper will warn about it.
+          Drag **NoteCraft** to Applications, then either right-click → **Open**, or run:
+
+          ```sh
+          xattr -dr com.apple.quarantine /Applications/NoteCraft.app
+          ```
+
+          SDL2 is linked statically, nothing else needs to be installed. Checksums are in `SHA256SUMS.txt`.
+          NOTES
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" \
+            --title "NoteCraft ${GITHUB_REF_NAME#v}" --notes-file notes.md
