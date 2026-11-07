@@ -25,10 +25,10 @@ Prebuilt binaries are on the **[Releases page](https://github.com/danielkrinets/
 
 | Platform | File |
 |---|---|
-| **Arch Linux** (x86_64) | `notecraft-1.0.0-1-x86_64.pkg.tar.zst` — `sudo pacman -U notecraft-*.pkg.tar.zst` |
-| **macOS, Apple Silicon** (M1 and newer) | `NoteCraft-1.0.0-macos-apple-silicon.dmg` (or `.zip`) |
-| **macOS, Intel** | `NoteCraft-1.0.0-macos-intel.dmg` (or `.zip`) |
-| Any other Linux (x86_64, aarch64) | `notecraft-1.0.0-linux-<arch>.tar.gz` (needs `libSDL2`) |
+| **Arch Linux** (x86_64) | `notecraft-1.0.1-1-x86_64.pkg.tar.zst` — `sudo pacman -U notecraft-*.pkg.tar.zst` |
+| **macOS, Apple Silicon** (M1 and newer) | `NoteCraft-1.0.1-macos-apple-silicon.dmg` (or `.zip`) |
+| **macOS, Intel** | `NoteCraft-1.0.1-macos-intel.dmg` (or `.zip`) |
+| Any other Linux (x86_64, aarch64) | `notecraft-1.0.1-linux-<arch>.tar.gz` (needs `libSDL2`) |
 
 Arch users can also build from source with [`packaging/arch/PKGBUILD`](packaging/arch/PKGBUILD): `makepkg -si`.
 

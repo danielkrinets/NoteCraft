@@ -20,7 +20,7 @@
 #include "txt.h"
 #include "utf.h"
 
-#define LW 427
+#define LW 240
 #define LH 240
 #define FRAME_MS 50
 

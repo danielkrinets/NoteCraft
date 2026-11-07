@@ -733,9 +733,9 @@ static void build_ui(App *a)
     case SCR_CONFIRM: {
         int y = a->H / 2 + 8;
         if (a->cf_kind == CF_UNSAVED) {
-            add_btn(a, B_CF1, cx - 150, y, 96, 20, "Save", 1);
-            add_btn(a, B_CF2, cx - 48, y, 96, 20, "Don't Save", 1);
-            add_btn(a, B_CF3, cx + 54, y, 96, 20, "Cancel", 1);
+            add_btn(a, B_CF1, cx - 112, y, 72, 20, "Save", 1);
+            add_btn(a, B_CF2, cx - 36, y, 72, 20, "Don't Save", 1);
+            add_btn(a, B_CF3, cx + 40, y, 72, 20, "Cancel", 1);
         } else {
             add_btn(a, B_CF1, cx - 100, y, 98, 20, "Overwrite", 1);
             add_btn(a, B_CF3, cx + 2, y, 98, 20, "Cancel", 1);
@@ -1228,7 +1228,7 @@ static void draw_toast(App *a, Fb *f)
 
 void app_render(App *a, Fb *f)
 {
-    fb_tile_dim(f, a->theme->dirt, 2, 64);
+    fb_clear(f, 0xFF1E1E1Eu);          /* plain dark backdrop: just the book and its buttons */
     build_ui(a);
     switch (a->screen) {
     case SCR_BOOK: draw_book_page(a, f, true); break;
@@ -1253,7 +1253,7 @@ App *app_new(const AppHost *host, const char *pack_dir)
     a->book = book_new();
     a->theme = theme_new(pack_dir);
     if (!a->book || !a->theme) { app_free(a); return NULL; }
-    a->W = 427; a->H = 240;
+    a->W = 240; a->H = 240;
     a->last_click_idx = -1;
     bind_page(a);
     a->redraw = true;

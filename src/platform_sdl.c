@@ -67,12 +67,12 @@ static int map_mods(Uint16 m)
 }
 
 /* Vanilla "auto" GUI scale: the largest integer scale that still leaves a
- * logical screen of at least 320x240. */
+ * logical screen of at least 240x240 (book + buttons + a little air). */
 static int auto_scale(int pw, int ph, int forced)
 {
     if (forced > 0) return forced;
     int s = 1;
-    while (pw / (s + 1) >= 320 && ph / (s + 1) >= 240) s++;
+    while (pw / (s + 1) >= 240 && ph / (s + 1) >= 240) s++;
     return s;
 }
 
@@ -128,10 +128,10 @@ int main(int argc, char **argv)
     SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, "1");
     if (SDL_Init(SDL_INIT_VIDEO) != 0) { fprintf(stderr, "SDL_Init: %s\n", SDL_GetError()); return 1; }
 
-    SDL_Window *win = SDL_CreateWindow("NoteCraft", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 854, 480,
+    SDL_Window *win = SDL_CreateWindow("NoteCraft", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 720, 720,
                                        SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
     if (!win) { fprintf(stderr, "SDL_CreateWindow: %s\n", SDL_GetError()); return 1; }
-    SDL_SetWindowMinimumSize(win, 320, 240);
+    SDL_SetWindowMinimumSize(win, 240, 240);
     SDL_Renderer *ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!ren) ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_SOFTWARE);
     if (!ren) { fprintf(stderr, "SDL_CreateRenderer: %s\n", SDL_GetError()); return 1; }
@@ -157,7 +157,7 @@ int main(int argc, char **argv)
     if (file) app_open_file(app, file);
     else app_toast(app, "Esc: menu   Ctrl+O: open   Ctrl+S: save");
 
-    Fb *fb = fb_new(427, 240);
+    Fb *fb = fb_new(240, 240);
     SDL_Texture *tex = NULL;
     int tex_w = 0, tex_h = 0, scale = 1, pw = 0, ph = 0;
     char last_title[300] = "";

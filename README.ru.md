@@ -22,10 +22,10 @@
 
 | Платформа | Файл |
 |---|---|
-| **Arch Linux** (x86_64) | `notecraft-1.0.0-1-x86_64.pkg.tar.zst` — `sudo pacman -U notecraft-*.pkg.tar.zst` |
-| **macOS, Apple Silicon** (M1 и новее) | `NoteCraft-1.0.0-macos-apple-silicon.dmg` (или `.zip`) |
-| **macOS, Intel** | `NoteCraft-1.0.0-macos-intel.dmg` (или `.zip`) |
-| Любой другой Linux (x86_64, aarch64) | `notecraft-1.0.0-linux-<arch>.tar.gz` (нужна `libSDL2`) |
+| **Arch Linux** (x86_64) | `notecraft-1.0.1-1-x86_64.pkg.tar.zst` — `sudo pacman -U notecraft-*.pkg.tar.zst` |
+| **macOS, Apple Silicon** (M1 и новее) | `NoteCraft-1.0.1-macos-apple-silicon.dmg` (или `.zip`) |
+| **macOS, Intel** | `NoteCraft-1.0.1-macos-intel.dmg` (или `.zip`) |
+| Любой другой Linux (x86_64, aarch64) | `notecraft-1.0.1-linux-<arch>.tar.gz` (нужна `libSDL2`) |
 
 На Arch можно собрать и из исходников: [`packaging/arch/PKGBUILD`](packaging/arch/PKGBUILD), команда `makepkg -si`.
 
