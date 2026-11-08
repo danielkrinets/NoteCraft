@@ -25,10 +25,10 @@ Prebuilt binaries are on the **[Releases page](https://github.com/danielkrinets/
 
 | Platform | File |
 |---|---|
-| **Arch Linux** (x86_64) | `notecraft-1.1.0-1-x86_64.pkg.tar.zst` — `sudo pacman -U notecraft-*.pkg.tar.zst` |
-| **macOS, Apple Silicon** (M1 and newer) | `NoteCraft-1.0.1-macos-apple-silicon.dmg` (or `.zip`) |
-| **macOS, Intel** | `NoteCraft-1.0.1-macos-intel.dmg` (or `.zip`) |
-| Any other Linux (x86_64, aarch64) | `notecraft-1.0.1-linux-<arch>.tar.gz` (needs `libSDL2`) |
+| **Arch Linux** (x86_64) | `notecraft-1.2.0-1-x86_64.pkg.tar.zst` — `sudo pacman -U notecraft-*.pkg.tar.zst` |
+| **macOS, Apple Silicon** (M1 and newer) | `NoteCraft-1.2.0-macos-apple-silicon.dmg` (or `.zip`) |
+| **macOS, Intel** | `NoteCraft-1.2.0-macos-intel.dmg` (or `.zip`) |
+| Any other Linux (x86_64, aarch64) | `notecraft-1.2.0-linux-<arch>.tar.gz` (needs `libSDL2`) |
 
 Arch users can also build from source with [`packaging/arch/PKGBUILD`](packaging/arch/PKGBUILD): `makepkg -si`.
 
@@ -36,7 +36,8 @@ Arch users can also build from source with [`packaging/arch/PKGBUILD`](packaging
 
 ## Features
 
-- **Just the book.** The window *is* an open book: two pages side by side on a leather cover, nothing else around it. Page arrows, `Page 1 of 4`, the blinking `_` caret, blue text selection, **Sign** / **Done** buttons and the "Enter Book Title" screen. Pages **turn with an animation**: the leaf lifts, swings over the spine and casts a shadow.
+- **Just the book.** The window *is* an open book, and **you can resize it by dragging any edge or corner**: it keeps the book's shape and scales proportionally, so there is never anything but the book in the window.
+  Two pages side by side on a leather cover, nothing else around it. Page arrows, `Page 1 of 4`, the blinking `_` caret, blue text selection, **Sign** / **Done** buttons and the "Enter Book Title" screen. Pages **turn with an animation**: the leaf lifts, swings over the spine and casts a shadow.
 - **Vanilla limits** (Java Edition): 100 pages · 1023 characters per page · 14 lines per page · 114 px line width · titles up to 15 characters. Typing past a limit is simply refused, exactly like in the game.
 - **Vanilla word wrap.** The wrapping algorithm is a port of Minecraft's `StringSplitter`: break at the last space, overhanging trailing space, long words are cut between characters.
 - **Pixel font with Cyrillic.** A proportional Minecraft-style font drawn from scratch (Latin, digits, punctuation, full Russian alphabet incl. `Ёё`, `«»`, `—`, `№`, `€`…).
@@ -44,7 +45,7 @@ Arch users can also build from source with [`packaging/arch/PKGBUILD`](packaging
 - **ePub.** Export your book as an EPUB 3 (one XHTML file per page) and open `.epub` files: books made by NoteCraft keep their exact pages, any other ePub is converted to text and paginated.
 - **Pages.** Two pages per spread. Turn with the arrows, `PgUp`/`PgDn` or the mouse wheel (the last arrow adds a new spread); `Tab` or a click moves between the left and right page.
 - **Signing.** *Sign* a book to give it a title and lock it (read-only view like a Written Book). *Unsign* from the menu to edit again.
-- **Native and tiny.** Software-rendered into a low-resolution framebuffer and scaled by an integer GUI scale (like Minecraft's *Auto* setting), so pixels stay crisp on any display, including HiDPI. It redraws only when something changes, so idle CPU use is negligible.
+- **Native and tiny.** Software-rendered into a low-resolution framebuffer and scaled to the window (whole-number sizes are pixel-perfect, anything in between is filtered evenly), so it stays crisp on any display, including HiDPI. It redraws only when something changes, so idle CPU use is negligible.
 - **Layout-independent shortcuts.** `Ctrl+C`/`V`… work on the Russian keyboard layout too (shortcuts follow the physical key).
 - `F2` screenshot (saved to `~/Pictures/NoteCraft/`), `F11` fullscreen, drag & drop a file onto the window.
 
@@ -76,7 +77,7 @@ sudo make install           # optional: /usr/local/bin + desktop entry + icon
 ```
 
 ```
-notecraft [--scale N] [file.txt | file.epub]
+notecraft [--scale N] [file.txt | file.epub]    # --scale: initial window size, in books
 ```
 
 ## Controls
@@ -90,7 +91,8 @@ notecraft [--scale N] [file.txt | file.epub]
 | `Ctrl+Q` | Quit (asks about unsaved changes) |
 | `PgUp` / `PgDn`, arrows, mouse wheel | Previous / next spread |
 | `Tab` | Jump between the left and right page |
-| `Ctrl` + `+` / `-` | Resize the window |
+| Drag an edge or corner | Resize the window (proportionally) |
+| `Ctrl` + `+` / `-` / `0` | Grow / shrink / reset the window |
 | `←` `→` `↑` `↓`, `Home`, `End` | Move the caret (with `Ctrl`: by word / to page start or end) |
 | `Shift` + movement, `Ctrl+A`, double click | Select |
 | `Ctrl+C` / `X` / `V` | Copy / cut / paste (a paste that does not fit is cut to what fits) |
